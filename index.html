@@ -24,7 +24,7 @@
   }
   
   ENDPOINTS TO CONFIGURE:
-  1. Proofread API: Replace {{PROOFREAD_API_ENDPOINT}} with your backend URL
+  1. Proofread API: Replace https://my-diary-2026.vercel.app/api/proofread with your backend URL
      - Expects POST with JSON body: { "text": "..." }
      - Returns JSON: { "proofreadText": "..." }
      - Compatible with OpenAI, Anthropic, or custom proxy
@@ -993,7 +993,7 @@ const STORAGE_KEY = 'diary_entries_v1';
 const PROOFREAD_API_ENDPOINT = '{{PROOFREAD_API_ENDPOINT}}';
 
 /** Set to false when you have a real proofread backend */
-const USE_MOCK_PROOFREAD = true;
+const USE_MOCK_PROOFREAD = false;
 
 /**
  * Translation API endpoint placeholder.
