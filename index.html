@@ -360,12 +360,12 @@ header h1 .icon {
    ============================================================ */
 .columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 20px;
   margin-bottom: 20px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .columns {
     grid-template-columns: 1fr;
   }
@@ -398,6 +398,36 @@ header h1 .icon {
 .column-header.proofread-header {
   background: var(--accent-light);
   color: var(--accent);
+}
+  .column-header.ielts-header {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+#ielts-display {
+  min-height: 280px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 1rem;
+  line-height: 1.8;
+  background: #fafafa;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.empty-ielts {
+  color: var(--text-light);
+  font-style: italic;
+  text-align: center;
+  padding-top: 40px;
+}
+
+.status-badge.ielts-done {
+  background: #e8f5e9;
+  color: #2e7d32;
 }
 
 .column-body {
@@ -867,6 +897,10 @@ mark.removed {
         <span>🤖 Proofread:</span>
         <span id="status-proofread">—</span>
       </div>
+       <div class="status-item">
+        <span>🎓 IELTS Rewrite:</span>
+        <span id="status-ielts">—</span>
+      </div>
     </div>
 
     <!-- ============================================================
@@ -875,6 +909,8 @@ mark.removed {
     <div class="actions">
       <button class="btn btn-primary" id="btn-save" aria-label="Save diary entry">💾 Save</button>
       <button class="btn btn-accent" id="btn-proofread" aria-label="Run AI proofread">🤖 AI Proofread</button>
+      <button class="btn btn-accent" id="btn-ielts" aria-label="Transform to IELTS Band 7" style="background:#2e7d32;">🎓 IELTS Band 7</button>
+      <button class="btn btn-outline" id="btn-reielts" aria-label="Re-run IELTS transform" style="display:none;">🔄 Re-IELTS</button>
       <button class="btn btn-outline" id="btn-reproofread" aria-label="Re-run AI proofread" style="display:none;">🔄 Re-Proofread</button>
       <button class="btn btn-outline" id="btn-clear" aria-label="Clear entry for this date">🗑️ Clear</button>
     </div>
@@ -910,6 +946,17 @@ mark.removed {
         <div class="column-body">
           <div id="proofread-display" aria-label="Proofread result" role="region">
             <div class="empty-proofread">No proofread version yet.<br>Click "AI Proofread" to get started.</div>
+          </div>
+        </div>
+      </article>
+      <!-- COLUMN C: IELTS Band 7 Rewrite -->
+      <article class="column" aria-label="IELTS Band 7 rewrite">
+        <div class="column-header ielts-header">
+          <span>🎓 IELTS Band 7 Version</span>
+        </div>
+        <div class="column-body">
+          <div id="ielts-display" aria-label="IELTS rewrite result" role="region">
+            <div class="empty-ielts">No IELTS version yet.<br>Click "🎓 IELTS Band 7" to generate.</div>
           </div>
         </div>
       </article>
@@ -1244,9 +1291,28 @@ function refreshUI() {
     $btnReproofread.style.display = 'none';
   }
 
+  // Update IELTS display (Column C)
+  const $ieltsDisplay = document.getElementById('ielts-display');
+  const $btnReielts = document.getElementById('btn-reielts');
+  const $statusIelts = document.getElementById('status-ielts');
+
+  if (entry && entry.ielts7Text) {
+    $ieltsDisplay.textContent = entry.ielts7Text;
+    $ieltsDisplay.style.whiteSpace = 'pre-wrap';
+    $btnReielts.style.display = 'inline-flex';
+  } else {
+    $ieltsDisplay.innerHTML = '<div class="empty-ielts">No IELTS version yet.<br>Click "🎓 IELTS Band 7" to generate.</div>';
+    $btnReielts.style.display = 'none';
+  }
   // Update status
   $statusEdited.textContent = entry ? formatTimestamp(entry.lastEditedAt) : '—';
   
+  // Update IELTS status
+  if (entry && entry.ieltsAt) {
+    $statusIelts.innerHTML = `<span class="status-badge ielts-done">✓ Done</span> ${formatTimestamp(entry.ieltsAt)}`;
+  } else {
+    $statusIelts.innerHTML = '<span class="status-badge not-proofread">Not yet</span>';
+  }
   if (entry && entry.proofreadAt) {
     $statusProofread.innerHTML = `<span class="status-badge proofread">✓ Proofread</span> ${formatTimestamp(entry.proofreadAt)}`;
   } else {
@@ -2052,7 +2118,105 @@ $lookupOverlay.addEventListener('keydown', (e) => {
   }
 });
 
+// ============================================================
+// IELTS BAND 7 TRANSFORM
+// ============================================================
 
+/**
+ * Call the IELTS transform API endpoint.
+ * Sends original text to /api/transform-to-ielts and returns
+ * a Band 7 level rewritten version.
+ *
+ * @param {string} text - Original diary text
+ * @returns {Promise<string>} IELTS Band 7 rewritten text
+ */
+async function callIeltsAPI(text) {
+  try {
+    const response = await fetch(
+      PROOFREAD_API_ENDPOINT.replace('/api/proofread', '/api/transform-to-ielts'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.ielts7Text || text;
+  } catch (error) {
+    console.error('IELTS API failed:', error);
+    throw error;
+  }
+}
+
+/** Whether IELTS transform is in progress */
+let isTransformingIelts = false;
+
+/**
+ * Run IELTS Band 7 transform for the current entry
+ */
+async function runIeltsTransform() {
+  const dateKey = toISODate(currentDate);
+  const text = $originalText.value.trim();
+
+  if (!text) {
+    showToast('⚠️ Write something first before transforming!');
+    return;
+  }
+
+  if (isTransformingIelts) return;
+  isTransformingIelts = true;
+
+  // Save the current text first
+  saveEntry(dateKey, {
+    originalText: text,
+    lastEditedAt: new Date().toISOString()
+  });
+
+  // Get DOM references for IELTS elements
+  const $btnIelts = document.getElementById('btn-ielts');
+  const $btnReielts = document.getElementById('btn-reielts');
+  const $ieltsDisplay = document.getElementById('ielts-display');
+
+  // Update UI to show loading
+  $btnIelts.disabled = true;
+  $btnReielts.disabled = true;
+  $btnIelts.innerHTML = '<span class="spinner" style="border-color:#fff;border-top-color:transparent;"></span> Transforming...';
+  $ieltsDisplay.innerHTML = '<div class="empty-ielts">🎓 AI is rewriting to IELTS Band 7 level...</div>';
+
+  try {
+    const ielts7Text = await callIeltsAPI(text);
+
+    // Save result to localStorage
+    saveEntry(dateKey, {
+      ielts7Text: ielts7Text,
+      ieltsAt: new Date().toISOString()
+    });
+
+    showToast('✅ IELTS Band 7 rewrite complete!');
+  } catch (error) {
+    console.error('IELTS transform failed:', error);
+    showToast('❌ IELTS transform failed. Please try again.');
+  } finally {
+    isTransformingIelts = false;
+    $btnIelts.disabled = false;
+    $btnReielts.disabled = false;
+    $btnIelts.innerHTML = '🎓 IELTS Band 7';
+    refreshUI();
+  }
+}
+
+// --- IELTS Button Event Listeners ---
+document.getElementById('btn-ielts').addEventListener('click', runIeltsTransform);
+document.getElementById('btn-reielts').addEventListener('click', () => {
+  if (confirm('Re-run IELTS Band 7 rewrite? This will overwrite the current version.')) {
+    runIeltsTransform();
+  }
+});
 // ============================================================
 // INITIALIZATION
 // ============================================================
